@@ -1,0 +1,120 @@
+import csv
+import os
+
+class Transaction:
+    def __init__(self, amount, category, type_):
+        self.amount = float(amount)
+        self.category = category
+        self.type_ = type_  # "Tulu" või "Kulu"
+
+    def __str__(self):
+        return f"{self.type_}: {self.amount}€ ({self.category})"
+
+
+class Account:
+    def __init__(self, owner):
+        self.owner = owner
+        self.balance = 0.0
+        self.transactions = []
+
+    def add_transaction(self, transaction):
+        self.transactions.append(transaction)
+        if transaction.type_ == "Tulu":
+            self.balance += transaction.amount
+        else:
+            self.balance -= transaction.amount
+
+
+### UUS PUNKT: PÄRILUS (INHERITANCE) ###
+# Investeerimiskonto pärib kõik Account klassi omadused, kuid lisab unikaalse funktsiooni
+class InvestmentAccount(Account):
+    def __init__(self, owner, risk_level="Keskmine"):
+        super().__init__(owner)  # Kutsub välja algse Account klassi __init__ meetodi
+        self.risk_level = risk_level
+
+    def calculate_roi(self, profit_percentage):
+        """Arvutab potentsiaalse tootluse (Return on Investment)"""
+        return self.balance * (profit_percentage / 100)
+
+
+class DataManager:
+    @staticmethod
+    def save_to_csv(account, filename="data.csv"):
+        with open(filename, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Summa", "Kategooria", "Tüüp"])
+            for t in account.transactions:
+                writer.writerow([t.amount, t.category, t.type_])
+        print("Andmed edukalt salvestatud!")
+
+    @staticmethod
+    def load_from_csv(account, filename="data.csv"):
+        if not os.path.exists(filename):
+            return
+        
+        with open(filename, mode="r", encoding="utf-8") as file:
+            reader = csv.reader(file)
+            next(reader)  # Jäta päis vahele
+            for row in reader:
+                if row:
+                    t = Transaction(row[0], row[1], row[2])
+                    account.add_transaction(t)
+
+
+# --- PEAPROGRAMM (CLI KASUTAJALIIDES) ---
+def main():
+    print("--- NUTIKAS FINANTSPLANEERIJA ---")
+    nimi = input("Sisesta oma nimi: ")
+    
+    # Loome lisaks tavalisele kontole ka investeerimiskonto
+    tava_konto = Account(nimi)
+    invest_konto = InvestmentAccount(nimi, risk_level="Kõrge")
+    
+    DataManager.load_from_csv(tava_konto)
+    print(f"Tere, {tava_konto.owner}. Sinu tavakonto saldo on: {tava_konto.balance}€")
+
+    while True:
+        print("\n1. Lisa tavaline tulu/kulu")
+        print("2. Vaata tehinguid ja saldot")
+        print("3. UUS: Investeeri raha ja arvuta tootlus")
+        print("4. Salvesta ja välju")
+        valik = input("Vali tegevus (1-4): ")
+
+        if valik == "1":
+            summa = input("Sisesta summa: ")
+            kat = input("Sisesta kategooria (nt. Toit, Palk): ")
+            tyyp = input("Tüüp (Tulu/Kulu): ")
+            t = Transaction(summa, kat, tyyp)
+            tava_konto.add_transaction(t)
+            print(f"Tehing lisatud! Uus saldo: {tava_konto.balance}€")
+            
+        elif valik == "2":
+            print("\n--- Sinu tehingud ---")
+            for t in tava_konto.transactions:
+                print(t)
+            print(f"Tavakonto lõppsaldo: {tava_konto.balance}€")
+            print(f"Investeerimiskonto saldo: {invest_konto.balance}€ (Riskitase: {invest_konto.risk_level})")
+            
+        elif valik == "3":
+            # Siin kasutame uut InvestmentAccount klassi unikaalset loogikat
+            invest_summa = float(input(f"Kui palju soovid investeerida? (Sul on vaba raha {tava_konto.balance}€): "))
+            if invest_summa <= tava_konto.balance:
+                # Võtame tavakontolt raha vähemaks ja paneme investeerimiskontole
+                tava_konto.add_transaction(Transaction(invest_summa, "Investeering", "Kulu"))
+                invest_konto.add_transaction(Transaction(invest_summa, "Aktsiad", "Tulu"))
+                
+                protsent = float(input("Sisesta oodatav aastane tootlusprotsent (nt 8): "))
+                kasum = invest_konto.calculate_roi(protsent)
+                print(f"Edukalt investeeritud! Sinu oodatav kasum aastas on: {kasum}€")
+            else:
+                print("Sul pole tavakontol piisavalt raha!")
+            
+        elif valik == "4":
+            DataManager.save_to_csv(tava_konto)
+            print("Andmed salvestatud. Nägemist!")
+            break
+        else:
+            print("Vigane valik!")
+
+if __name__ == "__main__":
+    main()
